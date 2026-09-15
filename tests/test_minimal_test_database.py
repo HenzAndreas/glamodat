@@ -6,7 +6,7 @@ import yaml
 from netCDF4 import Dataset
 from shapely.geometry import Point
 
-from scripts.comparison_tool import prepare_data
+from GLAMODAT.core.comparison_workflow import prepare_data
 
 
 def _write_model_output(path: Path) -> None:

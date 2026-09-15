@@ -12,10 +12,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-try:
-    from scripts.comparison_tool import evaluate
-except ModuleNotFoundError:
-    from comparison_tool import evaluate
+from GLAMODAT.core.comparison_workflow import evaluate
 
 
 def find_model_folders(input_folder: Path, output_nc_file: str) -> Iterable[Path]:

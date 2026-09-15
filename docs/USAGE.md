@@ -77,45 +77,10 @@ Set `glacier_history_file` in the comparison configuration to the resulting
 file. The input runs must contain `output.nc` with `lasticecover`; `topg` is
 optional.
 
-## Resample flowlines
-
-Convert a flowline shapefile into regularly spaced coordinate text files:
-
-```bash
-python scripts/resample_flowline.py \
-  --input /path/to/flowlines.shp \
-  --output /path/to/flowlines-40m \
-  --interval 40 \
-  --minimum-distance 25
-```
-
-The shapefile must contain an `id` field and line geometries.
-
 ## VS Code debugging
 
-Open the repository in VS Code, select the interpreter containing the GLAMODAT
-dependencies, and create a launch configuration with the script path
-`scripts/run_comparison.py`. Supply the same arguments as the command-line
-example in the `args` list:
-
-```json
-{
-  "name": "GLAMODAT single run",
-  "type": "debugpy",
-  "request": "launch",
-  "program": "${workspaceFolder}/scripts/run_comparison.py",
-  "args": [
-    "--model-output", "/path/to/model-run",
-    "--config", "${workspaceFolder}/configs/params_comparison_tool_case_study.yaml",
-    "--no-plots"
-  ],
-  "console": "integratedTerminal"
-}
-```
-
-For library-level debugging, import `prepare_data`, `analyse_data`, or
-`evaluate` from `scripts.comparison_tool` and place breakpoints in those
-functions.
+Using the VS Code Python Debugger extension from debugpy, you can set breakpoints in the script and run comparison_tool.py or run_comparison_tool.py in debug mode (usually F5 or manually clicking on debug button.) This allows you to step through the code, inspect variables along the way, and understand the flow of the program step by step.
+Make sure to set the correct working directory and provide the necessary command-line arguments, which you can write directly in the python file for debugging purposes.
 
 ## Configuration
 
