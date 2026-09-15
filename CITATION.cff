@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "Please cite the GLAMODAT publication when available."
+title: "GLAMODAT"
+type: software
+authors:
+  - family-names: Henz
+    given-names: Andreas
+    affiliation: University of Zurich
+version: 0.1.0
+license: GPL-3.0-or-later
+repository-code: "https://github.com/REPLACE_WITH_ORGANIZATION/glamodat"
+url: "PUBLICATION_LINK_TO_BE_ADDED"
+abstract: "Comparison of transient glacier-model simulations with dated geomorphic and geochronological evidence."

@@ -1,0 +1,34 @@
+# Local environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Large or generated research data
+archive/
+test_database/
+*.nc
+*.csv
+*.png
+*.ipynb
+
+# Generated comparison products
+distance_per_feature/
+distances_over_time/
+checked_cells/
+ice_thickness_plots/
+glacier_history_maps/
+features-to-score.txt
+batch_results.csv
+glacier_history.nc
+summed_glacier_history.png
+
+# Local editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
