@@ -153,7 +153,17 @@ def evaluate(folder, parameter_file, create_plots=True):
 
     return horizontal_distance, vertical_distance, final_score, fraction_zero_distances # to minimize the function, num_zero_distances is only for high and mediuim quality ages!!
 
-if False:
+if __name__ == "__main__" and False:
+
+    synthetic_case = True
+
+    if synthetic_case:
+        model_output = "test_database/test_run_1.0"
+        parameter_file = "configs/params_comparison_tool_synthetic_case.yaml"
+    else:
+        # model_output = sys.argv[1] if len(sys.argv) > 1 else 'Lamare_simulations_for_AH_scoring/IGM_simulations/sim_0659/outputs/2026-07-09/16-58-20/output_ex.nc'
+        model_output = sys.argv[1] if len(sys.argv) > 1 else 'susten-run-paper-may/1'
+        parameter_file = sys.argv[2] if len(sys.argv) > 2 else 'comparison_tool/params_comparison_tool_case_study.yaml'
 
     # set current folder as working folder)
     # os.chdir("..")

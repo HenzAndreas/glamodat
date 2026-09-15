@@ -38,4 +38,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # sys.argv = [
+    #     "run_comparison.py",
+    #     "--model-output",
+    #     "../paleoalps-extension/susten-run-paper-may/1/",
+    #     "--config",
+    #     "configs/params_comparison_tool_case_study.yaml",
+    # ]
     main()

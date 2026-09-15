@@ -80,4 +80,15 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # sys.argv = [
+    #     "run_batch_comparison.py",
+    #     "--input",
+    #     "test_database",
+    #     "--config",
+    #     "configs/params_comparison_tool_synthetic_case.yaml",
+    #     "--results",
+    #     "batch_results.csv",
+    #     "--output-file",
+    #     "output.nc",
+    # ]
     main()
