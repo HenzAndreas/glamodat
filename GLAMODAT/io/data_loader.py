@@ -16,7 +16,7 @@ def load_yaml_parameters(parameter_file):
             params = yaml.safe_load(f)
     except FileNotFoundError:
         print(f"Parameter file {parameter_file} not found. We are in this folder right now: {os.getcwd()}. Please check if the parameter file is in the correct folder.")
-        raise AttributeError("Parameter file not found. Please check if the parameter file is in the correct folder.")
+        raise AttributeError(f"Parameter file {parameter_file} not found. Please check if the parameter file is in the correct folder. Right now we are in this folder: {os.getcwd()}.")
     return params
 
 def read_nc_file_as_class(file, params):    
@@ -159,7 +159,7 @@ def read_nc_file_as_class(file, params):
             raise ValueError(f"Glacier history ice cover shape {glacier_history.shape} does not match lasticecover shape {state.lasticecover.shape[1:]}.")
 
     else:
-        raise FileNotFoundError(f"Glacier history ice cover file not found: {glacier_history_file}. Please provide this file to use the distance calculations.")
+        raise FileNotFoundError(f"Glacier history ice cover file not found: {glacier_history_file}. Please provide this file to use the distance calculations. We are currently in folder {os.getcwd()}. Please check if the glacier history file is present and correctly specified in the parameters.")
 
     # after all this code, there should now be variables for: lasticecover, thk, topg, x, y, t and glacier_history, check for that
     # find attributes:
@@ -182,7 +182,7 @@ def load_and_process_shapefiles(params, data_to_load, data_folder, target_epsg, 
         if not shapefiles[var].endswith('.shp'):
             folder_path = os.path.join(data_folder, shapefiles[var])
             if not os.path.isdir(folder_path):
-                raise ValueError(f"Expected a folder for {var} at {folder_path}, but it does not exist.")
+                raise ValueError(f"Expected a folder for {var} at {folder_path}, but it does not exist. We are currently in folder {os.getcwd()}. Please check if the folder is present and correctly specified in the parameters.")
             # list all shapefiles in the folder and add them to data_to_load
             for file_name in os.listdir(folder_path):
                 if file_name.endswith('.shp'):
