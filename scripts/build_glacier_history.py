@@ -69,18 +69,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # for testing you can run this script directly also here, if you give the input here (hard coded into the file...)
-    # sys.argv = [
-    #     "build_glacier_history.py",
-    #     "--input",
-    #     "test_database",
-    #     "--runs",
-    #     "test_run_1.0",
-    #     "test_run_0.5",
-    #     "test_run_0.25",
-    #     "--output",
-    #     "glacier_history.nc",
-    #     "--preview",
-    #     "summed_glacier_history.png",
-    # ]
     main()
