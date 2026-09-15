@@ -1,5 +1,7 @@
 """ Created in February 2026 taking over the scripts from comparison_report_utils but making it so general, that we can use it outside of the comparison tool"""
 """ Andreas Henz, February 2026"""
+""" WARNING: This script is not actively maintained, you can alsways use --no_plot to skip the plotting, if there are errors, many plots are very specific
+to the application used for the original comparison tool paper... this can help you get inspiration. All data is saved before the plotting, so you can use the saved data to make your own plots."""
 
 # basic imports
 import os

@@ -18,10 +18,6 @@ def do_all_plots(folderpath, evaluation_timeframe, params):
     plot_individual_features_over_time(folderpath, distances_tensor, metadata, evaluation_timeframe)
     plot_combined_distances_over_time(folderpath, distances_tensor, metadata, evaluation_timeframe)
 
-    # for this, we need the output of the glacier, which we need the specific folderpath exactly.
-    # plot_mapview_distances_over_time(folderpath, distances_tensor, metadata, evaluation_timeframe) # this script takes long and is made seperate now, only for model runs I actually want to look at every timestep.
-    plot_last_frame_with_icecover_over_time(folderpath, 0.0, 0.0, params)
-
 if __name__ == "__main__":
     # example usage
     # run_folder = 'comparison_tool/test_database'
@@ -35,11 +31,5 @@ if __name__ == "__main__":
     # plot_forcing(folderpath, evaluation_timeframe=(-80.0, 14000))
     plot_individual_features_over_time(folderpath, distances_tensor, metadata, evaluation_timeframe=(-80.0, 14000))
     plot_combined_distances_over_time(folderpath, distances_tensor, metadata, evaluation_timeframe=(-80.0, 14000))
-
-    parameter_file = os.path.join('comparison_tool', "params_comparison_tool_case_study.yaml")
-    # load run params, when not given by the function
-    with open(parameter_file, 'r', encoding='utf-8') as f:
-        params = yaml.safe_load(f)
-    plot_last_frame_with_icecover_over_time(folderpath, 0.0, 0.0, params)
 
     print("All plots created and saved in the folder.")
