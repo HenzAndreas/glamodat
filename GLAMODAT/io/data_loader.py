@@ -330,9 +330,19 @@ def _check_ages_shp(geo, type_of_ages):
     else:
         print(f'Checking ages {type_of_ages} --> shapefile is correct.')
 
-    # numberic columns are after the first 6 columns, so we convert to numerics
-    for col in geo.columns[6:]:
-        geo.loc[:, col] = pd.to_numeric(geo[col], errors='coerce')
+    # Shapefiles may read numeric attributes as strings.  Do not rely on
+    # column order, since optional columns can change 
+    # known numeric attributes and preserve categorical fields and geometry.
+    numeric_columns = (
+        set(needed_columns_TCN_ages)
+        | set(needed_columns_C14_ages)
+        | set(needed_columns_event_ages)
+        | {'glength_po'}
+    ) & set(geo.columns)
+    for col in numeric_columns:
+        values = geo[col].astype('string').str.strip()
+        values = values.str.replace(',', '', regex=False)
+        geo[col] = pd.to_numeric(values, errors='coerce')
 
     # for this set all values in a new column type_of_ages to the type_of_ages, so we can use it later for filtering
     geo.loc[:, 'type_of_ages'] = type_of_ages
