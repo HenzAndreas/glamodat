@@ -1,7 +1,7 @@
 ## Parameter file for comparison_tool
 
 # Folder containing empirical data like AlpIce.
-data_folder: test_database
+data_folder: ../test_database
 # What kind of data should be used?
 # data_to_load: ['TCN_ages', 'C14_ages', 'lia_front_position']
 data_to_load: ['event_ages']
@@ -17,7 +17,7 @@ target_epsg: 32632
 # for the glacier model
 topg_file: None 
 # ensemble files are here
-folder_with_simulations: test_database/
+folder_with_simulations: ../test_database/
 output_nc_file: 'output.nc' # this is the pattern to find the output files in the folder_with_simulations. The * is a wildcard for any characters, so it will find all files that match this pattern.
 output_nc_ts_file: 'output_ts.nc' # this is the pattern to find the output_ts files in the folder_with_simulations. The * is a wildcard for any characters, so it will find all files that match this pattern.
 # this is the year format of the model output, e.g. -BP, CE, -b2k, etc. This is important for the comparison tool to know how to interpret the time axis of the model output.
@@ -26,7 +26,7 @@ year_format: -b2k
 output_saving_frequency: 10.0
 
 # ice mask and analysing mask
-ice_mask_file: test_database/mask-test-database.shp
+ice_mask_file: ../test_database/mask-test-database.shp
 ice_mask_inverted: False # if True, the ice mask is drawn where ice should be, if False, the ice mask is drawn where ice should not be.
 # can be the same as ice mask or can be different, if only certain areas should be analysed in the comparison tool, but has to be a polygon shapefile.
 analyse_mask_file: test_database/mask-test-database.shp
