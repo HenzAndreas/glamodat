@@ -67,6 +67,7 @@ def calculate_weights(state, params):
 
     if valid_mask.sum() < 2:
         print("Not enough valid points to calculate density weights.")
+        spatio_temporal_weights[valid_mask] = 1.0  # Assign a default weight of 1.0 to valid points
     else:
         valid_points = points[valid_mask]
         valid_times = times[valid_mask]

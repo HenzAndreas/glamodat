@@ -86,7 +86,7 @@ def analyse_data(state, params):
     )
 
     total_weight = np.sum(state.features_to_score["tot_weights"])
-    if total_weight != 1.0:
+    if not np.isclose(total_weight, 1.0):
         print("Warning: Total weights do not sum to 1. Normalizing weights.")
         state.features_to_score["tot_weights"] /= total_weight
 

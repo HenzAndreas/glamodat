@@ -240,6 +240,9 @@ def load_and_process_shapefiles(params, data_to_load, data_folder, target_epsg, 
         temp = _delete_outside_extent(state.working_folder, params, extent, gdf=temp)  # clip to model extent right away, and also ice mask if present
 
         temp = _delete_ambiguous_and_unqualified(temp)  # remove ambiguous and unqualified ages, because they are not useful for scoring
+        if temp.empty:
+            print(f"Filtered out all rows for {var}, no features in region of interest, skipped.")
+            continue
 
         type_of_ages = temp['type_of_ages'].iloc[0]
 
@@ -544,7 +547,11 @@ def _delete_outside_extent(working_folder, params, extent, gdf):
     if os.path.exists(icemask_file):
         print(f"Found analyse mask file {icemask_file}. Using it to filter the ages.")
         icemask = gpd.read_file(icemask_file)
-        
+
+        if not icemask.is_valid.all():
+            print(f"Warning: analyse mask file {icemask_file} has invalid geometries. Attempting to fix them.")
+            icemask.geometry = icemask.geometry.make_valid()
+
         # Ensure both are in the same CRS
         icemask = icemask.to_crs(gdf.crs)
         # if icemask is inverted, we have to invert it here again to plot the things outside the polygon
@@ -598,8 +605,8 @@ def _delete_ambiguous_and_unqualified(gdf):
     # and - in these columns..
     gdf = gdf[(gdf['pc_cat'] != '-')]
 
-    # check if gdf is empty after filtering, if so, raise an error
+    # check if gdf is empty after filtering, if so, return an empty geodataframe
     if gdf.empty:
-        raise ValueError("All rows have been filtered out due to ambiguous or unqualified categories. Please check the input data.")
+        return gdf # return an empty geodataframe and let the calling function handle it.
     
     return gdf

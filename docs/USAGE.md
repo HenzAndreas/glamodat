@@ -86,9 +86,7 @@ Make sure to set the correct working directory and provide the necessary command
 
 The YAML configuration defines model files, evidence files, coordinate reference
 system, time convention, analysis interval, and scoring weights. Paths are
-currently interpreted relative to the working directory unless they are
-absolute. Keep model and evidence data outside the source repository when they
-are large or confidential.
+currently interpreted relative to the working directory.
 
 The time convention is set by two keys (details in the README, section "Time
 convention"):
@@ -103,3 +101,5 @@ end_time: -20.0            # younger end (2020 CE)
 Check the line "Time convention: model time t = year CE - …" at the start of a
 run. A wrong `model_year_ce_at_t0` shifts model and evidence against each other
 without an error.
+
+Make sure the `start_time` and `end_time` are within the model output time range. And also marking the whole time window of the dating uncerteinty, otherwise the evidence will be filtered out. For example, if a dating has an uncertainty of 100 years, and the start_time is 400 years b2k, then the dating should be at be younger than 300 years b2k to be included in the analysis.
