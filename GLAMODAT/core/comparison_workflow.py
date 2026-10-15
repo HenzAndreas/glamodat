@@ -35,15 +35,14 @@ def prepare_data(model_output, parameter_file="comparison_tool.yaml"):
     state = read_nc_file_as_class(model_file, params)
     state.working_folder = model_output
     extent = [min(state.x), max(state.x), min(state.y), max(state.y)]
-    timeframe = [
-        state.t.min() + np.nanmax(state.icefree_cummulative),
-        state.t.min(),
-    ]
+    # first and last model frame on the internal time scale (ages, older first)
+    timeframe = [float(state.t.max()), float(state.t.min())]
     timeframe_tool = [params.get("start_time"), params.get("end_time")]
 
     print(
-        f"Extent of the model: {extent}. Time frame of the model: {timeframe}. "
-        "Please check that the model time format is correct."
+        f"Extent of the model: {extent}. Time frame of the model: {timeframe} {state.time_label}; "
+        f"analysed: {timeframe_tool} {state.time_label}. "
+        "Please check that the time convention (year_format, model_year_ce_at_t0) is correct."
     )
     load_and_process_shapefiles(
         params,

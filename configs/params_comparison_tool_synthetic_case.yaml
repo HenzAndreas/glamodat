@@ -20,9 +20,13 @@ topg_file: None
 folder_with_simulations: ../test_database/
 output_nc_file: 'output.nc' # this is the pattern to find the output files in the folder_with_simulations. The * is a wildcard for any characters, so it will find all files that match this pattern.
 output_nc_ts_file: 'output_ts.nc' # this is the pattern to find the output_ts files in the folder_with_simulations. The * is a wildcard for any characters, so it will find all files that match this pattern.
-# this is the year format of the model output, e.g. -BP, CE, -b2k, etc. This is important for the comparison tool to know how to interpret the time axis of the model output.
-# the minus is mostly there, because the model runs forward, towards positive values, so the time axis is negative usually, but the comparison tools changes then to positiv BP (before present)
+# Time convention (see README, "Time convention"):
+# year_format: time scale used inside GLAMODAT and for start_time / end_time: -b2k = years before 2000 CE,
+# -bp = years before 1950 CE (case-insensitive). Evidence ages are converted to this scale automatically.
 year_format: -b2k
+# calendar year (CE) at model time t = 0, i.e. model time t = year CE - model_year_ce_at_t0
+# (e.g. 2000 for IGM runs with t = 0 in 2000 CE; 1950 for runs in negative years BP). Default if missing: 2000.
+model_year_ce_at_t0: 2000
 output_saving_frequency: 10.0
 
 # ice mask and analysing mask
@@ -33,6 +37,9 @@ analyse_mask_file: test_database/mask-test-database.shp
 glacier_history_file: glacier_history.nc # this is the file that contains the glacier history, if it exists, it will be used to override the lasticecover.nc file. If it does not exist, the lasticecover variable from the glacier output will be used.
 
 # Tool infos:
+# start_time / end_time in the units of year_format (start_time = older); both must be output frames (the closest
+# frame within half of output_saving_frequency is accepted). Evidence is used only if its whole age window lies
+# between start_time and end_time.
 start_time: 13050.0
 end_time: 50.0
 # Analysis frequency in years

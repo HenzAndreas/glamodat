@@ -12,13 +12,32 @@ from GLAMODAT.core.distance_calculation_debug_plots import plot_checked_cells
 from GLAMODAT.core.distance_calculation_debug_plots import plot_ice_thickness_through_time
 
 
+def _frame_index(model_times, wanted_time, name, tolerance):
+    """Index of the model frame closest to wanted_time (same time scale as model_times).
+
+    Raises a clear error if no frame is within `tolerance` years, and warns if the closest frame is not exact.
+    """
+    index = int(np.argmin(np.abs(model_times - wanted_time)))
+    offset = abs(model_times[index] - wanted_time)
+    if offset > tolerance:
+        raise ValueError(f"{name} = {wanted_time} has no model frame within {tolerance} years (closest frame: "
+                         f"{model_times[index]}, model frames from {model_times.max()} to {model_times.min()}). "
+                         f"Check {name}, output_saving_frequency and the time convention (year_format, "
+                         f"model_year_ce_at_t0).")
+    if offset > 0:
+        print(f"Warning: {name} = {wanted_time} is not a model frame; the closest frame {model_times[index]} is used.")
+    return index
+
+
 def process_features(state, params):
 
     number_of_features = len(state.features_to_score)
 
-    # find start index and end index for the time steps
-    start_index_model = np.where(state.t == state.start_time)[0][0]
-    end_index_model = np.where(state.t == state.end_time)[0][0]
+    # find start index and end index for the time steps; start_time / end_time should be output frames, the closest
+    # frame is accepted within half an output interval
+    tolerance = 0.5 * state.output_saving_frequency
+    start_index_model = _frame_index(state.t, state.start_time, "start_time", tolerance)
+    end_index_model = _frame_index(state.t, state.end_time, "end_time", tolerance)
 
     times = state.t[start_index_model:end_index_model+1:int(state.analysis_frequency/state.output_saving_frequency)]
 

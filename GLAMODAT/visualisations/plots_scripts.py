@@ -149,7 +149,7 @@ def plot_individual_features_over_time(savefolder, distances, features, evaluati
     plt.savefig(f"{savefolder}/distances_over_time_individual_high-medium.svg", bbox_inches='tight', dpi=600)
     plt.close(fig)
 
-def plot_combined_distances_over_time(folderpath, distances, features, evaluation_timeframe):
+def plot_combined_distances_over_time(folderpath, distances, features, evaluation_timeframe, time_label='years b2k'):
     # dynamically build index groups from available confidence and type values
     all_index = features.index.to_numpy()
 
@@ -243,7 +243,8 @@ def plot_combined_distances_over_time(folderpath, distances, features, evaluatio
     # give labels to axes
     ax1.set_ylabel('Distance (m)')
     ax2.set_ylabel('Number of Landforms')
-    ax2.set_xlabel('Years (a BP)')
+    # time_label from the time convention of the run (years BP or years b2k)
+    ax2.set_xlabel(f'Time ({time_label})')
 
     ax1.set_xlim(evaluation_timeframe[1], evaluation_timeframe[0])
     ax2.set_xlim(evaluation_timeframe[1], evaluation_timeframe[0])

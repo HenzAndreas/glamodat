@@ -53,9 +53,10 @@ def plot_checked_cells(workingdir, last_ice_pad, checked_cells, dx, Date_ID, cur
 def plot_ice_thickness_through_time(working_dir, times, ice_thickness_through_time, id, row_index, feature_type, year_format):
     import matplotlib.pyplot as plt
 
-    # change x-axis time name depending on year_format
-    if year_format == '-sBP':
-        x_label = 'Time (years BP)'
+    # change x-axis time name depending on year_format (case-insensitive, as in data_loader.get_time_convention)
+    year_format = str(year_format).strip().lower()
+    if year_format == '-bp':
+        x_label = 'Time (years BP (before 1950 CE))'
     elif year_format == '-b2k':
         x_label = 'Time (years b2k (before 2000 CE))'
     else:

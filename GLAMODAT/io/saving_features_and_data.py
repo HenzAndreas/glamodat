@@ -42,7 +42,9 @@ def save_features_and_distances(state):
         lines.append("")
 
         # Add the time and score columns
-        lines.append("time (a BP),horizontal_distance (m),vertical_distance (m)")
+        # time unit from the time convention of the run (years BP or years b2k), see data_loader.get_time_convention
+        time_label = getattr(state, 'time_label', 'years')
+        lines.append(f"time ({time_label}),horizontal_distance (m),vertical_distance (m)")
 
         # Add the score data
         distance_data = state.distance_array[i, :]  # Assuming score_array is 2D: (horizontal distance, vertical distance, time)

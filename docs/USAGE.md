@@ -89,3 +89,17 @@ system, time convention, analysis interval, and scoring weights. Paths are
 currently interpreted relative to the working directory unless they are
 absolute. Keep model and evidence data outside the source repository when they
 are large or confidential.
+
+The time convention is set by two keys (details in the README, section "Time
+convention"):
+
+```yaml
+year_format: -b2k          # internal time scale: years before 2000 CE (-bp: before 1950 CE)
+model_year_ce_at_t0: 2000  # model time t = year CE - 2000 (default if missing: 2000, was 1950 in earlier GLAMODAT versions)
+start_time: 400.0          # older end of the analysed period, in years b2k; must be an output frame
+end_time: -20.0            # younger end (2020 CE)
+```
+
+Check the line "Time convention: model time t = year CE - …" at the start of a
+run. A wrong `model_year_ce_at_t0` shifts model and evidence against each other
+without an error.

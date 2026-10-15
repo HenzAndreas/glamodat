@@ -10,6 +10,46 @@ import pandas as pd
 import geopandas as gpd
 from netCDF4 import Dataset
 
+# Time convention ==================
+# GLAMODAT works internally with ages: positive years before a "present" year, growing into the past.
+# year_format selects that present year; the evidence ages and start_time / end_time are given on this scale.
+year_formats = {'-bp': 1950.0, '-b2k': 2000.0}
+# Calendar year (CE) of model time t = 0 if model_year_ce_at_t0 is not set. 2000 reproduces the conversion of
+# earlier GLAMODAT versions (-bp: age = -t, -b2k: age = -t + 50), i.e. model time t = year CE - 2000.
+default_model_year_ce_at_t0 = 2000.0
+
+
+def get_time_convention(params):
+    """Return (year_format, present_year_ce, time_label) from params; year_format is case-insensitive."""
+    year_format = str(params.get('year_format', '')).strip().lower()
+    if year_format not in year_formats:
+        raise ValueError(f"Unknown year_format '{params.get('year_format')}'. Supported formats are "
+                         f"{list(year_formats)} (ages before 1950 or before 2000 CE).")
+    time_label = 'years BP' if year_format == '-bp' else 'years b2k'
+    return year_format, year_formats[year_format], time_label
+
+
+def model_time_to_age(t, params, verbose=True):
+    """Convert model time t (years, increasing towards the present) to ages on the internal time scale.
+
+    The model time is t = year CE - model_year_ce_at_t0 (e.g. 2000 for IGM runs with t = 0 in 2000 CE, 1950 for
+    runs in negative years BP), so age = present_year - model_year_ce_at_t0 - t.
+    """
+    year_format, present_year, time_label = get_time_convention(params)
+    year_ce_at_t0 = params.get('model_year_ce_at_t0')
+    if year_ce_at_t0 is None:
+        year_ce_at_t0 = default_model_year_ce_at_t0
+        if verbose:
+            print(f"Warning: model_year_ce_at_t0 is not set, assuming model time t = year CE - "
+                  f"{default_model_year_ce_at_t0:.0f}. Set it in the parameter file (e.g. 2000 if t = 0 is 2000 CE), "
+                  f"otherwise model and evidence can be shifted against each other.")
+    age = (present_year - float(year_ce_at_t0)) - t
+    if verbose:
+        print(f"Time convention: model time t = year CE - {float(year_ce_at_t0):.0f}, converted to {time_label} "
+              f"(year_format {year_format}).")
+    return age
+
+
 def load_yaml_parameters(parameter_file):
     try:
         with open(parameter_file, 'r', encoding='utf-8') as f:
@@ -33,7 +73,7 @@ def read_nc_file_as_class(file, params):
             # Read out variables and assign as attributes if they exist
             for var in ['x', 'y', 'time', 'thk','icemargin', 'lasticecover', 'icefree_cummulative']:
 
-                # for lasticecover, make sure to read it as (time in bp, y, x)
+                # for lasticecover, make sure to read it as (time, y, x)
                 if var == 'lasticecover':
                     setattr(self, var, ds.variables[var][:]) # negative is ice free, positive is ice free age
                     # add the value of the very first frame (from 0 to 1 topg norm) to make it differentiable
@@ -41,15 +81,11 @@ def read_nc_file_as_class(file, params):
 
                 # make time to t
                 elif var == 'time':
-                    setattr(self, 't', ds.variables[var][:])
-                    # make sure the year is in the right format, using params year_format
-                    if params.get('year_format') == '-BP':
-                        self.t = -self.t # reverse the time array to be in ascending order and make it negative for BP
-                    elif params.get('year_format') == '-b2k':
-                        self.t = -self.t + 50.0 # 50 becuase b2k is 2000, and BP is 1950, so we need to add 50 years to convert from b2k to BP
-                    else:
-                        print(f"Warning: year_format {params.get('year_format')} not recognized. Assuming BP, but be sure to check if your model run is in BP or in another unit..")
-                        self.t = -self.t
+                    # model time -> ages (years BP or b2k, positive into the past), see get_time_convention and
+                    # model_time_to_age; the evidence ages are converted to the same scale in _give_age_bounds
+                    self.t = model_time_to_age(np.asarray(ds.variables[var][:], dtype=float), params)
+                    self.time_label = get_time_convention(params)[2]
+                    print(f"Model frames from {self.t[0]:.0f} to {self.t[-1]:.0f} {self.time_label}.")
                     # check if we are going from old to young (big to small)$
                     check_time_order = np.diff(self.t)
                     if np.any(check_time_order > 0):
@@ -397,13 +433,8 @@ def _give_age_bounds(gdf, type_of_ages, params):
     min_ages = []
     max_ages = []
 
-    year_format = params.get('year_format')  # Default to AD if not specified
-    if year_format == '-b2k':
-        year_of_present = 2000
-    elif year_format == '-bp':
-        year_of_present = 1950
-    else:
-        raise ValueError(f"Unknown year format: {year_format}. Supported formats are '-b2k' and '-bp'.")
+    # present year (CE) of the internal time scale: 1950 for -bp, 2000 for -b2k (see get_time_convention)
+    year_of_present = get_time_convention(params)[1]
 
     if type_of_ages == 'TCN':
         for i, item in gdf.iterrows():
@@ -546,13 +577,16 @@ def _delete_outside_extent(working_folder, params, extent, gdf):
 
 def _delete_outside_time_frame(time_frame, gdf):
     """
-    Delete all rows in the GeoDataFrame that are outside the time frame defined by the state's t values.
+    Keep only the rows whose whole age window [min_age, max_age] lies inside the analysed time frame
+    (start_time, end_time); evidence that only partly overlaps the time frame is removed.
     """
-    # time frame that should be analysed, e.g., (min_time, max_time) in years
-    time_frame = time_frame  # e.g., (min_time, max_time)
-
+    # time frame that should be analysed: (start_time, end_time), ages on the internal scale (start_time older)
+    n_before = len(gdf)
     gdf = gdf[(gdf['min_age'] >= time_frame[1]) & (gdf['max_age'] <= time_frame[0])]
-    
+    if len(gdf) < n_before:
+        print(f"Time filter: {n_before - len(gdf)} of {n_before} features removed, because their age window is not "
+              f"completely inside start_time {time_frame[0]} to end_time {time_frame[1]}.")
+
     return gdf
 
 def _delete_ambiguous_and_unqualified(gdf):

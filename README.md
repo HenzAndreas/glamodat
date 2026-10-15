@@ -116,6 +116,51 @@ as `ID`, `confid_ra`, `pc_cat`, `pc_subcat`, `pc_time`, `e_age_min`, and
 `e_age_max`. Coordinate reference systems and time conventions must be declared
 correctly in the YAML configuration.
 
+### Time convention
+
+GLAMODAT compares model and evidence on one internal time scale of **ages**:
+positive years before a "present" year, growing into the past. Two settings
+define it:
+
+- `year_format` sets the present year: `-b2k` = years before 2000 CE,
+  `-bp` = years before 1950 CE (case-insensitive). `start_time` and `end_time`
+  are given on this scale, with `start_time` the older one.
+- `model_year_ce_at_t0` is the calendar year (CE) at model time t = 0, i.e. the
+  model time is t = year CE − `model_year_ce_at_t0`. Use 2000 for IGM runs with
+  t = 0 in 2000 CE and 1950 for runs that count in negative years BP. If it is
+  missing, GLAMODAT assumes 1950 (the behaviour of earlier versions) and prints a
+  warning.
+
+Model frames are converted with age = present year − `model_year_ce_at_t0` − t.
+Example: with `year_format: -b2k` and `model_year_ce_at_t0: 2000`, the model frame
+t = −400 (1600 CE) has the age 400 b2k.
+
+Evidence ages are converted to the same scale:
+
+| Evidence type | Fields | Read as |
+|---|---|---|
+| event ages | `e_age_min`, `e_age_max` | years BP (1950) |
+| ¹⁴C | `recal_min`, `recal_max` | calibrated years BP (1950) |
+| TCN | `r_exp_age` ± `r_ext_err` | years before the sampling year (`sample_yr`, else `public_yr`, else 2024) |
+| dated landforms | `e_age` − `e_neg_err` / + `e_pos_err` | years before `mean_s_yr`, else `mean_p_yr`, else 2000 |
+
+Further rules:
+
+- `start_time` and `end_time` should be output frames of the model. The
+  closest frame within half of `output_saving_frequency` is accepted (with a
+  warning); otherwise GLAMODAT stops with an error.
+- A feature is used only if its **whole** age window [min_age, max_age] lies
+  between `start_time` and `end_time`. The number of features removed by this
+  rule is printed.
+- Ice margins and moraines match if the cell was last ice-covered at a time
+  inside the age window. Ice that covers the feature after the young end of the
+  window (an overshoot) is scored with the distance at the time of maximum ice
+  thickness at the feature. Ice that goes beyond the feature and back within the
+  window is not penalised.
+- A mismatch between `model_year_ce_at_t0` and the model output shifts model and
+  evidence against each other without any error. Check the printed line
+  "Time convention: …" and the time frame of the model at the start of a run.
+
 See [docs/DATA_AND_REPRODUCIBILITY.md](docs/DATA_AND_REPRODUCIBILITY.md) for
 input details, provenance, data licensing, and the external test database.
 

@@ -43,6 +43,10 @@ A model output file normally contains:
 - `icefree_cummulative(time, y, x)`
 - either `topg(time, y, x)` or `usurf(time, y, x)`
 
+`time` is the model time in years, increasing towards the present. Its relation
+to calendar years is set with `model_year_ce_at_t0` in the configuration (README,
+section "Time convention").
+
 A separate glacier-history file contains `glacier_history(y, x)` or equivalent
 2-D dimensions with the same spatial shape.
 
@@ -51,6 +55,9 @@ A separate glacier-history file contains `glacier_history(y, x)` or equivalent
 Evidence is read through GeoPandas. The exact fields depend on the evidence type,
 but event-age point data use fields such as `ID`, `confid_ra`, `pc_cat`,
 `pc_subcat`, `pc_time`, `e_age_min`, and `e_age_max`, plus a geometry and CRS.
+Event ages (`e_age_min`, `e_age_max`) and calibrated ¹⁴C ages are read as years
+BP (before 1950 CE); TCN and landform ages are read relative to their sampling
+or publication year. All are converted to the time scale of `year_format`.
 The default example configuration uses EPSG:32632; users must set the CRS to
 match their data and model grid.
 
