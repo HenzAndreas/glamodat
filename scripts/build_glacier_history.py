@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
+
+# repository root on the path, so the GLAMODAT package can be imported when this file is run as a script
+repository_root = Path(__file__).resolve().parents[1]
+if str(repository_root) not in sys.path:
+    sys.path.insert(0, str(repository_root))
+
+from GLAMODAT.io.data_loader import clip_to_run_duration
 
 def find_compromise_glacier_history(nc_file_path: Path, variable_name: str = "lasticecover"):
     """Extract the final ice-cover frame and scale it to [-1, 1]."""
@@ -15,6 +23,10 @@ def find_compromise_glacier_history(nc_file_path: Path, variable_name: str = "la
         if variable_name not in dataset.variables:
             raise KeyError(f"Variable {variable_name!r} is not present in {nc_file_path}")
         last_ice_cover = dataset.variables[variable_name][-1, :, :]
+        model_time = dataset.variables["time"][:]
+    # durations from before the run (e.g. +-99000 yr from the heatmaps start) limited to the run duration + 1 yr, so
+    # the scaling to [-1, 1] below is not dominated by them
+    last_ice_cover = clip_to_run_duration(last_ice_cover[np.newaxis], model_time[[0, -1]])[-1]
 
     shifted = last_ice_cover - np.min(last_ice_cover)
     maximum = np.max(shifted)

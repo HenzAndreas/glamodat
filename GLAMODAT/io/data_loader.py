@@ -50,6 +50,20 @@ def model_time_to_age(t, params, verbose=True):
     return age
 
 
+def clip_to_run_duration(field, model_time):
+    """Limit ice-cover / ice-free durations (years, one 2-D frame per model time) to the time since the first frame + 1 yr.
+
+    Heatmaps could be started with large values
+    meaning "ice covered / ice free since before the run". Clipped to the run duration
+    + 1 yr they keep this meaning, but stay inside the range of the run (readable plots, and the glacier-history scaling
+    is not dominated by them). Values that build up inside the run are never changed.
+    """
+    model_time = np.asarray(model_time, dtype=float)
+    # years since the first frame, +1 yr = "since before the run"; one limit per frame, broadcast over (y, x)
+    limit = (np.abs(model_time - model_time[0]) + 1.0).reshape((-1,) + (1,) * (np.ndim(field) - 1))
+    return np.clip(np.asarray(field, dtype=float), -limit, limit)
+
+
 def load_yaml_parameters(parameter_file):
     try:
         with open(parameter_file, 'r', encoding='utf-8') as f:
@@ -75,9 +89,12 @@ def read_nc_file_as_class(file, params):
 
                 # for lasticecover, make sure to read it as (time, y, x)
                 if var == 'lasticecover':
-                    setattr(self, var, ds.variables[var][:]) # negative is ice free, positive is ice free age
-                    # add the value of the very first frame (from 0 to 1 topg norm) to make it differentiable
-                    self.lasticecover += (self.lasticecover[0, :, :])
+                    # negative = years ice free, positive = years ice covered; durations from before the run are limited to
+                    # the run duration + 1 yr (see clip_to_run_duration; self.t is read before, 'time' comes first in the list)
+                    setattr(self, var, clip_to_run_duration(ds.variables[var][:], self.t))
+                    # the small 0-1 topography term (to make it differentiable) is added below, once topg is known.
+                    # The first frame can not be used for this: we want to be independent of the heatmaps module in IGM, so we 
+                    # add the topography term here, which is the same as in the heatmaps module (topg_norm).
 
                 # make time to t
                 elif var == 'time':
@@ -143,6 +160,13 @@ def read_nc_file_as_class(file, params):
                 print("Warning: Neither 'topg' nor 'usurf' variables are present in the netCDF file, and no valid 'topg_file' is provided in parameters. Cannot determine topography.\n")
                 print(f"Folder given was {params.get('folder_with_simulations')}, and topg_file was {params.get('topg_file')}. And we are in folder {os.getcwd()}. Please check if the topography file is present and correctly specified in the parameters.\n")
                 raise ValueError("Neither 'topg' nor 'usurf' variables are present in the netCDF file, and no valid 'topg_file' is provided in parameters. Cannot determine topography.")
+
+            # make lasticecover differentiable: add a small term between 0 (lowest bed) and 1 (highest bed), the same
+            # normalised topography as the initial value in the heatmaps module (topg_norm)
+            if self.lasticecover is not None:
+                topg = np.asarray(self.topg, dtype=float)
+                topg_norm = (topg - np.nanmin(topg)) / (np.nanmax(topg) - np.nanmin(topg)) / 1000.0 # small term between 0  and 0.001
+                self.lasticecover = np.asarray(self.lasticecover, dtype=float) + topg_norm
 
                 # if thk is not available, set it to zero array (this is needed for plotting later, but actually only the cases for the synthetic case)
             if self.thk is None and self.lasticecover is not None:

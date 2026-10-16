@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 from netCDF4 import Dataset
 
+from GLAMODAT.io.data_loader import clip_to_run_duration
+
 
 # function to load the csv files and save it as df and tensor
 def load_csv_as_df_and_tensor(csv_file_path):
@@ -109,7 +111,8 @@ def load_topography_and_icecover(folderpath):
         topg = usurf - thk
     t = dataset.variables['time'][:]
     t = -t # convert to years before present
-    lasticecover = dataset.variables['lasticecover'][:]
+    # durations from before the run limited to the run duration + 1 yr (same as in the comparison tool)
+    lasticecover = clip_to_run_duration(dataset.variables['lasticecover'][:], t)
     x = dataset.variables['x'][:]
     y = dataset.variables['y'][:]
     dataset.close()
