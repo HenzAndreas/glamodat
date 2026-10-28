@@ -61,7 +61,11 @@ def clip_to_run_duration(field, model_time):
     model_time = np.asarray(model_time, dtype=float)
     # years since the first frame, +1 yr = "since before the run"; one limit per frame, broadcast over (y, x)
     limit = (np.abs(model_time - model_time[0]) + 1.0).reshape((-1,) + (1,) * (np.ndim(field) - 1))
-    return np.clip(np.asarray(field, dtype=float), -limit, limit)
+    # clip in place (callers pass a freshly read array): no second full-size float64 copy of the field;
+    # a new array only if limit has more frames than field (build_glacier_history: 1 frame, first + last time)
+    field = np.asarray(field, dtype=float)
+    in_place = np.broadcast_shapes(field.shape, limit.shape) == field.shape
+    return np.clip(field, -limit, limit, out=field if in_place else None)
 
 
 def load_yaml_parameters(parameter_file):
@@ -91,6 +95,8 @@ def read_nc_file_as_class(file, params):
                 if var == 'lasticecover':
                     # negative = years ice free, positive = years ice covered; durations from before the run are limited to
                     # the run duration + 1 yr (see clip_to_run_duration; self.t is read before, 'time' comes first in the list)
+                    # read without netCDF4's mask (one bool per cell); the mask was ignored here anyway (np.asarray in clip)
+                    ds.variables[var].set_auto_mask(False)
                     setattr(self, var, clip_to_run_duration(ds.variables[var][:], self.t))
                     # the small 0-1 topography term (to make it differentiable) is added below, once topg is known.
                     # The first frame can not be used for this: we want to be independent of the heatmaps module in IGM, so we 
@@ -110,6 +116,8 @@ def read_nc_file_as_class(file, params):
 
                 # normal cases ==================
                 elif var in ds.variables:
+                    # 3-D fields (time, y, x) without netCDF4's mask array (saves one bool per cell); IGM writes no fill values
+                    ds.variables[var].set_auto_mask(ds.variables[var].ndim < 3)
                     setattr(self, var, ds.variables[var][:])
                 else:
                     setattr(self, var, None)
@@ -166,7 +174,9 @@ def read_nc_file_as_class(file, params):
             if self.lasticecover is not None:
                 topg = np.asarray(self.topg, dtype=float)
                 topg_norm = (topg - np.nanmin(topg)) / (np.nanmax(topg) - np.nanmin(topg)) / 1000.0 # small term between 0  and 0.001
-                self.lasticecover = np.asarray(self.lasticecover, dtype=float) + topg_norm
+                self.lasticecover = np.asarray(self.lasticecover, dtype=float)
+                # add in place: no second full-size float64 copy
+                self.lasticecover += topg_norm
 
                 # if thk is not available, set it to zero array (this is needed for plotting later, but actually only the cases for the synthetic case)
             if self.thk is None and self.lasticecover is not None:
