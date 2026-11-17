@@ -80,6 +80,7 @@ def test_prepare_data_with_minimal_fixture(tmp_path):
         "output_nc_file": "output.nc",
         "output_nc_ts_file": "output_ts.nc",
         "year_format": "-b2k",
+        "model_year_ce_at_t0": 1950,  # fixture model time [-50, 50] is relative to 1950 -> ages [100, 0] b2k
         "glacier_history_file": "glacier_history.nc",
         "analyse_mask_file": str(model_output / "missing-mask.shp"),
         "start_time": 100.0,

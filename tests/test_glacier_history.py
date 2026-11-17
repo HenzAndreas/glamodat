@@ -13,6 +13,9 @@ def _write_model_run(path: Path, last_ice_cover: np.ndarray) -> None:
         dataset.createDimension("x", last_ice_cover.shape[1])
         variable = dataset.createVariable("lasticecover", "f8", ("time", "y", "x"))
         topography = dataset.createVariable("topg", "f8", ("time", "y", "x"))
+        # model time (needed by clip_to_run_duration); 100 yr run, so the small test values are not clipped
+        time = dataset.createVariable("time", "f8", ("time",))
+        time[:] = [0.0, 100.0]
         variable[0, :, :] = 0.0
         variable[1, :, :] = last_ice_cover
         topography[:] = 0.0
