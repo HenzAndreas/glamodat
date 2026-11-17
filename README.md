@@ -152,7 +152,10 @@ Further rules:
 - A feature is used only if its **whole** age window [min_age, max_age] lies
   between `start_time` and `end_time`. The number of features removed by this
   rule is printed.
-- Ice margins and moraines match if the cell was last ice-covered at a time
+- Bedrock exposure (a total exposure duration until today) is only evaluated if
+  `end_time` is the present (0 on the age scale). Otherwise all bedrock exposure
+  features are removed, and their number is printed.
+- Ice margins match if the cell was last ice-covered at a time
   inside the age window. Ice that covers the feature after the young end of the
   window (an overshoot) is scored with the distance at the time of maximum ice
   thickness at the feature. Ice that goes beyond the feature and back within the

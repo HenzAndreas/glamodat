@@ -286,6 +286,7 @@ def load_and_process_shapefiles(params, data_to_load, data_folder, target_epsg, 
         temp = _give_age_bounds(gdf=temp, type_of_ages=type_of_ages, params=params)  # not the LIA, because this already has the age bounds
 
         temp = _delete_outside_time_frame(timeframe_tool, gdf=temp)  # clip to model time frame right away
+        temp = _delete_bedrock_exposure_if_not_present(timeframe_tool, gdf=temp)  # bedrock exposure only for runs until the present
         # define a new column which is the midpoint of the geometry, with points it is the same as geometry
         temp.loc[:, 'midpoint'] = temp.geometry.centroid
 
@@ -628,6 +629,20 @@ def _delete_outside_time_frame(time_frame, gdf):
         print(f"Time filter: {n_before - len(gdf)} of {n_before} features removed, because their age window is not "
               f"completely inside start_time {time_frame[0]} to end_time {time_frame[1]}.")
 
+    return gdf
+
+def _delete_bedrock_exposure_if_not_present(time_frame, gdf):
+    """
+    Bedrock exposure is a total exposure duration until today (not an age), compared with icefree_cummulative at the
+    last frame. That is only meaningful if the analysed time frame ends at the present (end_time <= 0 on the internal
+    age scale). Otherwise all bedrock exposure features are removed (intended: not evaluated at all).
+    """
+    end_time = time_frame[1]
+    is_bedrock = gdf['pc_cat'] == 'bedrock exposure'
+    if end_time > 0 and is_bedrock.any():
+        print(f"Bedrock exposure: {int(is_bedrock.sum())} features removed, because end_time {end_time} is not the "
+              f"present (0). Bedrock exposure is only evaluated for runs until the present.")
+        gdf = gdf[~is_bedrock]
     return gdf
 
 def _delete_ambiguous_and_unqualified(gdf):

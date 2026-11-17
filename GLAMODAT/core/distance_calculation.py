@@ -65,12 +65,12 @@ def process_features(state, params):
         ti_comp = np.where(times <= state.t[ti_model])[0][0]  # also only update the last time step for this..
 
             # analyse it here right away
-        horizontal, vertical, sign_lastice = _calculate_distance(state, ti_model, row)
+        horizontal, vertical, sign_lastice = _calculate_distance(state, ti_model, row, first_evaluation=True)
 
         row['icecover'] = sign_lastice  # update icecover status in features_to_score dataframe
 
             # for ice margins we have to check once where the ice margin was at the moment when the boulder should have been deposited, after that we only have to check if the icefree status did not change
-        if row.pc_cat in ['ice margin', 'ice free', 'rockfall deposit', 'moraine', 'rockglacier', 'peatbog', 'ice cover']:
+        if row.pc_cat in ['ice margin', 'ice free', 'ice cover']:
                 # if this feature is matching at this time step, we need later on to check if the ice free status is actually staying ice free
             coords = np.array(row.midpoint.coords[0])
 
@@ -106,12 +106,12 @@ def process_features(state, params):
                 current_ice_thickness = state.thk[ti_model, j, i]
                     
                     # if there is a very special case, where we have an ice free date that is later ice covered, we only evaluate the distance at the min_age time
-                if row.pc_cat == 'ice free' and row.pc_subcat == 'ice retreat/readvance' and np.any(ice_thickness_through_time > 0):
+                if row.pc_cat == 'ice free' and row.pc_time == 'ice-free interval' and np.any(ice_thickness_through_time > 0):
                         # if it is ice free at the min_age time, but later on becomes ice covered, we only evaluate the distance at the min_age time, because this is the only time step where we can be sure that the feature was actually ice free
                     pass  # horizontals and verticals are already filled with zeros or the distance value
-                elif row.pc_cat == 'ice free' and row.pc_subcat == 'ice retreat/readvance' and np.any(ice_thickness_through_time == 0):
-                    print(f"Warning: This feature {row['ID']} - {row['pc_cat']} has a retreat/readvance time perspective, but it is ice free at the min_age time and later is not ice covered anymore, so there is a to short ice extent later.. however, will not go into the objective evaluation.")
-
+                elif row.pc_cat == 'ice free' and row.pc_time == 'ice-free interval' and np.all(ice_thickness_through_time == 0):
+                    print(f"Warning: This feature {row['ID']} - {row['pc_time']} has a ice-free interval time perspective, but it is ice free at the min_age time and later is not ice covered anymore, so there is a to short ice extent later.. however, will not go into the objective evaluation.")
+                    pass
                 else: # for all other cases, it should not be ice covered later on.
                         # if everything is zero, we can just fill in the rest with zeros
                     if np.all(ice_thickness_through_time == 0):
@@ -175,10 +175,12 @@ def process_features(state, params):
         state.distance_array[index, :, 2] = times
 
 
-def _calculate_distance(state, ti, row):
+def _calculate_distance(state, ti, row, first_evaluation=False):
     """
     Calculate a distance to a fitting grid cell from the glacier model output.
-    
+
+    first_evaluation: True only for the first evaluation of a feature in process_features (frame just after min_age);
+    only then the special case "last change after the window" is allowed (see _special_case_met).
     """
     # save current timestep
     lasticecover = state.lasticecover[ti]
@@ -197,7 +199,7 @@ def _calculate_distance(state, ti, row):
 
         i, j = int(np.round((coords[0] - min(state.x)) / state.dx)), int(np.round((coords[1] - min(state.y)) / state.dx))
 
-        return _distance_for_point(current_t, i, j, state, lasticecover, cumicefree, usurf, row, glacier_history) # early return for point geometries
+        return _distance_for_point(current_t, i, j, state, lasticecover, cumicefree, usurf, row, glacier_history, first_evaluation) # early return for point geometries
     
     elif geometry.geom_type in ['Polygon', 'MultiPolygon']:
         # Generate points in the polygon
@@ -228,7 +230,7 @@ def _calculate_distance(state, ti, row):
         i, j = int(np.round((coords[0] - min(state.x)) / state.dx)), int(np.round((coords[1] - min(state.y)) / state.dx))
         # print(i, j, coords)
         # Calculate the score for this point
-        horizontal_distance, vertical_distance, sign_last_ice = _distance_for_point(current_t, i, j, state, lasticecover,cumicefree , usurf, row, glacier_history)
+        horizontal_distance, vertical_distance, sign_last_ice = _distance_for_point(current_t, i, j, state, lasticecover,cumicefree , usurf, row, glacier_history, first_evaluation)
         horizontal_distances.append(horizontal_distance)
         vertical_distances.append(vertical_distance)
 
@@ -244,16 +246,19 @@ def _calculate_distance(state, ti, row):
     return mean_horizontal_distance, mean_vertical_distance, np.sign(sign_last_ice) # return the mean horizontal and vertical distance, and the sign of the last ice (positive for ice cover, negative for ice free)
 
 def _condition_met_for_palcontext(current_t, last_ice, cum_icefree, min_age, max_age, palcontext, pc_time, jumped_over_icemargin=False):
-    if palcontext in ['ice margin', 'moraine']:
+    if palcontext == 'ice margin':
         return (min_age-current_t <= -last_ice) * ( -last_ice <= max_age-current_t) or jumped_over_icemargin
     elif palcontext == 'ice free':
+        # time since min_age / max_age, seen from the evaluated frame
+        to_min = min_age - current_t
+        to_max = max_age - current_t
         if pc_time == 'ice-free interval':
-            return (max_age-current_t <= -last_ice) or (min_age-current_t <= abs(last_ice)) # min age, because inside the uncertainty we accept everything
+            icefree_now_since_window = (last_ice < 0) and (-last_ice >= to_min) # ice free since inside the window or earlier
+            covered_after_icefree_in_window = (last_ice > 0) and (to_min <= last_ice <= to_max) # ice came back inside the window, so it was icefree just before inside the window.
+            return icefree_now_since_window or covered_after_icefree_in_window
         else:
-            # This was before, now we only call icefree "moment" when we have the very specific time, namely current_t is min_age
-                # if current_t < min_age:
-                #     return True
-            return (max_age-current_t <= -last_ice) or (min_age-current_t <= abs(last_ice)) # min age, because inside the uncertainty we accept everything
+            # long-term deglaciation (default, also for '' and '-'): ice free now, and since inside the window or earlier
+            return (last_ice < 0) and (-last_ice >= to_min)
 
     elif palcontext == 'ice cover':
         return (min_age-current_t <= last_ice) and (last_ice > 0.0)
@@ -261,13 +266,51 @@ def _condition_met_for_palcontext(current_t, last_ice, cum_icefree, min_age, max
         #     return (min_age <= last_ice) * (last_ice <= max_age)
     elif palcontext == 'bedrock exposure':
         return cum_icefree >= min_age
-    elif palcontext in ['rockfall deposit', 'peatbog', 'rock glacier', 'other']:
-        return (max_age-current_t <= -last_ice) or (min_age-current_t <= abs(last_ice)) # must be icefree since max age, but can be icefree since longer, because we do not have an upper bound on the age of formation of these landforms, only a lower bound, which is the max age
     else:
         print(f"Unknown palcontext: {palcontext}")
     return False
 
-def _distance_for_point(current_t, i, j, state, lasticecover, cumicefree, usurf, row, glacier_history):
+
+# ---------------------------------------------------------------------------------------------------------------------
+# SPECIAL CASE: (added November 2026) last change after the window (only 'ice margin' and 'ice free' with 'ice-free interval')
+#
+# lasticecover only remembers the last change. If |last_ice| < min_age - current_t, the last change happened after
+# min_age (between the window and the evaluated frame), e.g. a small advance (and maybe a retreat again) after the
+# window. Then the evaluated frame can not tell anymore what happened inside the window, and we check the youngest model
+# frame inside the window with the normal rule. In all other cases that frame would give the same answer, so nothing
+# changes for them. Long-term deglaciation never needs this: any ice after the window is a mismatch.
+# Only for the first evaluation of a feature (first_evaluation=True, set only by the first _calculate_distance call in
+# process_features): the later re-evaluations (frame with the most ice, which can even be the same frame) must still
+# see a later readvance as a mismatch.
+# ---------------------------------------------------------------------------------------------------------------------
+
+def _is_special_case_change_after_window(current_t, last_ice, min_age, palcontext, pc_time):
+    """True if the last change of the cell happened after min_age, so the evaluated frame can not judge the window."""
+    if not (palcontext == 'ice margin' or (palcontext == 'ice free' and pc_time == 'ice-free interval')):
+        return False
+    return abs(last_ice) < min_age - current_t
+
+
+def _special_case_condition(t_before, last_ice_before, min_age, max_age, palcontext, pc_time):
+    """The normal rule, applied to the youngest frame inside the window (t_before, last_ice_before)."""
+    return _condition_met_for_palcontext(t_before, last_ice_before, np.nan, min_age, max_age, palcontext, pc_time)
+
+
+def _special_case_met(state, row, current_t, last_ice, j, i):
+    """Special case for cell (j, i) of the full grid: True if the youngest frame inside the window matches.
+    Only called for the first evaluation of a feature (see first_evaluation in _distance_for_point)."""
+    min_age, max_age = row['min_age'], row['max_age']
+    if not _is_special_case_change_after_window(current_t, last_ice, min_age, row['pc_cat'], row['pc_time']):
+        return False
+    inside = np.where((state.t >= min_age) & (state.t <= max_age))[0]
+    if len(inside) == 0:
+        return False  # no model frame inside the window (window shorter than the output interval)
+    ti_before = inside[np.argmin(state.t[inside])]  # youngest frame inside the window
+    return _special_case_condition(state.t[ti_before], state.lasticecover[ti_before, j, i],
+                                   min_age, max_age, row['pc_cat'], row['pc_time'])
+
+
+def _distance_for_point(current_t, i, j, state, lasticecover, cumicefree, usurf, row, glacier_history, first_evaluation=False):
     # Find the closest point in the state
 
     # check if this cell agrees
@@ -280,12 +323,12 @@ def _distance_for_point(current_t, i, j, state, lasticecover, cumicefree, usurf,
 
     palcontext = row['pc_cat']
     pc_time = row['pc_time']
-    pc_subcat = row['pc_subcat']
 
     # differentiate the different palcontext types with different functions
     
     # check if last ice in inbetween the min and max age
-    if _condition_met_for_palcontext(current_t, last_ice, cum_ice, min_age, max_age, palcontext, pc_time): # returns True or False for a single point
+    if (_condition_met_for_palcontext(current_t, last_ice, cum_ice, min_age, max_age, palcontext, pc_time) # returns True or False for a single point
+            or (first_evaluation and _special_case_met(state, row, current_t, last_ice, j, i))):
         return 0.0, 0.0, np.sign(last_ice) # full match
 
     else:
@@ -325,7 +368,7 @@ def _distance_for_point(current_t, i, j, state, lasticecover, cumicefree, usurf,
         cells_checked = [( cell_j, cell_i )]
 
         # if we are looking for the ice margin and are outside the ice, we have to go towards the ice (higher values of last ice)
-        if palcontext in ['ice margin', 'moraine'] and last_ice < current_t - min_age:
+        if palcontext == 'ice margin' and last_ice < current_t - min_age:
             search_for_higher_values = -1.0
         # if ice cover is not fullfilled, it means we have not enough ice, so we have to go towards the ice (higher values of last ice), otherwise we have too much ice, which means we have still a fit with the ice cover age
         elif palcontext == 'ice cover':
@@ -350,7 +393,10 @@ def _distance_for_point(current_t, i, j, state, lasticecover, cumicefree, usurf,
             # check if we jumped over an icemargin
             if np.sign(last_ice) != sign_of_last_ice:
                 jumped_over_icemargin = True
-            if _condition_met_for_palcontext(current_t, last_ice, cum_ice_pad[cell_j, cell_i], min_age, max_age, palcontext, pc_time, jumped_over_icemargin):
+            # cell in the full grid (for the special case, which reads an earlier frame)
+            grid_j, grid_i = cell_j + max(j-grid_cells_to_search, 0), cell_i + max(i-grid_cells_to_search, 0)
+            if (_condition_met_for_palcontext(current_t, last_ice, cum_ice_pad[cell_j, cell_i], min_age, max_age, palcontext, pc_time, jumped_over_icemargin)
+                    or (first_evaluation and _special_case_met(state, row, current_t, last_ice, grid_j, grid_i))):
                 ii = cell_i - starting_i  # offset from center
                 jj = cell_j - starting_j
                 new_horizontal_distance = np.sqrt(ii**2 + jj**2) * state.dx

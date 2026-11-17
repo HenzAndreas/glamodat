@@ -1,0 +1,49 @@
+# Test cases for GLAMODAT.core.distance_calculation._condition_met_for_palcontext
+#
+# One case per line, columns separated by "|" (spaces around the values are ignored, so keep the table aligned).
+# Lines starting with "#" and empty lines are skipped.
+#
+# Conventions (same as inside GLAMODAT):
+#   ages        : positive years before present (b2k), growing into the past
+#   current_t   : age of the model frame that is evaluated
+#                 ice margin / ice free -> the first frame with age <= min_age (process_features), so usually
+#                 a bit younger than min_age; == min_age only if a frame falls exactly on it (special case)
+#                 ice cover / bedrock exposure -> the last frame (end_time)
+#   last_ice    : lasticecover of the cell at current_t
+#                 negative = ice free since |last_ice| years, positive = ice covered since last_ice years
+#   cum_icefree : icefree_cummulative of the cell at current_t (total ice-free years), only used by bedrock exposure;
+#                 "-" = not used by this category
+#   t_before    : age of an earlier model frame: the youngest frame with age >= min_age (the last frame still inside
+#                 the window). Only for special cases where last_ice at current_t is not enough, because
+#                 lasticecover only remembers the last change; "-" = only the frame at current_t is used
+#   last_ice_before : lasticecover of the cell at t_before; "-" = not used
+#   expected   : what the function SHOULD return (physical meaning, not what the code currently does)
+#   explanation : what the case means. If it contains "KNOWN ISSUE:", the code currently disagrees with
+#                 "expected" and the test is xfail (strict: it fails once the code is fixed, then remove the note).
+#
+# group = baseline -> two simple cases per category (one match, one mismatch)
+# group = special  -> edge cases, added later
+
+# id   | group    | pc_cat           | pc_time                | min_age | max_age | current_t | last_ice | cum_icefree | t_before | last_ice_before | expected | explanation
+IM-01  | baseline | ice margin       | -                      |   11040 |   11540 |     11000 |     -200 |           - |        - |               - | True     | frame 11000 (first after min_age); last ice at 11200 lies inside the window -> match
+IM-02  | baseline | ice margin       | -                      |   11040 |   11540 |     11000 |       50 |           - |        - |               - | False    | frame 11000; cell still ice covered -> ice margin has not retreated to the feature yet
+IF-01  | baseline | ice free         | long-term deglaciation |   11040 |   11540 |     11000 |     -600 |           - |        - |               - | True     | frame 11000; ice free since 11600 (older than max_age) -> site was ice free during the whole window, but we need to check later as well --> tool looks at thickness curve of that point, thickness needs to be all zero until the youngest model time
+IF-02  | baseline | ice free         | long-term deglaciation |   11040 |   11540 |     11000 |      300 |           - |        - |               - | False    | frame 11000; cell ice covered since 11300, which also means ice free min one year before that. cell was ice free in this interval but not now anymore
+IF-03  | baseline | ice free         | ice-free interval      |   11040 |   11540 |     11000 |      300 |           - |        - |               - | True     | frame 11000; cell ice covered since 11300, which also means ice free at min one year before that. Cell was ice free in the ice-free interval
+IF-04  | baseline | ice free         | ice-free interval      |   11040 |   11540 |     11000 |      600 |           - |        - |               - | False    | frame 11000; cell ice covered for since 11600, but should be at least once ice free inside the period
+IF-05  | baseline | ice free         | long-term deglaciation |   11040 |   11540 |     11000 |      -10 |           - |        - |               - | False    | frame 11000; ice free only since 11010 (after min_age): even if it was ice free inside the window before, a short readvance after the window breaks long-term deglaciation (no ice at all after the window) -> no special case, the earlier frame is not needed
+IC-01  | baseline | ice cover        | -                      |    3000 |    3500 |         0 |     4000 |           - |        - |               - | True     | last frame; ice covered since 4000 (older than min_age) and still ice covered -> match
+IC-02  | baseline | ice cover        | -                      |    3000 |    3500 |         0 |     3100 |           - |        - |               - | True     | last frame; ice covered since 3100, but that is okay within the uncertainty of the age
+IC-03  | baseline | ice cover        | -                      |    3000 |    3500 |         0 |     2000 |           - |        - |               - | False    | last frame; ice covered only since 2000 which means ice free before, the age needs at least 3000 years
+IC-04  | baseline | ice cover        | -                      |    3000 |    3500 |         0 |     -100 |           - |        - |               - | False    | last frame; cell ice free -> no ice cover
+BE-01  | baseline | bedrock exposure | -                      |   10000 |   10500 |         0 |        - |       10200 |        - |               - | True     | last frame; 10200 years ice free in total >= min_age -> match
+BE-02  | baseline | bedrock exposure | -                      |   10000 |   10500 |         0 |        - |        8000 |        - |               - | False    | last frame; only 8000 years ice free in total < min_age -> not enough exposure
+
+# special cases: last_ice only remembers the last change -> the earlier frame t_before is needed, this is when last_ice has a smaller number than the difference of min_age to current_t
+IF-S02 | special  | ice free         | ice-free interval      |   11040 |   11540 |     11000 |       20 |           - |    11050 |            -200 | True     | SPECIAL CASE ice came back just after the window: ice free since 11250 (frame 11050 still inside the window), ice cover again since 11020, after min_age. Frame 11000 alone can not tell if the site was ice free inside the window; frame 11050 shows it was.
+IF-S03 | special  | ice free         | ice-free interval      |   11040 |   11540 |     11000 |       20 |           - |    11050 |             600 | False    | SPECIAL CASE counter-case to IF-S02: ice cover again since 11020, and at frame 11050 the cell is already ice covered since 11650 (older than max_age) -> ice covered during the whole window, the earlier frame must not make it a match
+IF-S04 | special  | ice free         | ice-free interval      |   11040 |   11540 |     11000 |       20 |           - |    11050 |             250 | True     | SPECIAL CASE like IF-S02, but at frame 11050 the cell is ice covered since 11300 (inside the window), so it was ice free just before 11300 inside the window -> match; what happens after the window (ice free again after 11050, new ice cover since 11020) does not matter
+IM-S01 | special  | ice margin       | -                      |   11040 |   11540 |     11000 |      -10 |           - |    11050 |            -250 | True     | SPECIAL CASE advance and retreat after the window: ice margin passed the site at 11300 (frame 11050 still inside the window), small advance after min_age covered it, retreat again at 11010. Frame 11000 alone says ice free only since 11010; frame 11050 shows the retreat inside the window
+IM-S02 | special  | ice margin       | -                      |   11040 |   11540 |     11000 |       20 |           - |    11050 |            -250 | True     | SPECIAL CASE advance after the window still there: ice margin passed the site at 11300, ice covered again since 11020. The margin age is right (frame 11050); the ice still there at frame 11000 is judged by the later ice thickness check in process_features, not here
+IM-S03 | special  | ice margin       | -                      |   11040 |   11540 |     11000 |      -10 |           - |    11050 |             600 | False    | SPECIAL CASE counter-case: at frame 11050 the cell is ice covered since 11650 (whole window) -> the margin did not pass inside the window, the earlier frame must not make it a match
+IM-S04 | special  | ice margin       | -                      |   11040 |   11540 |     11000 |      -10 |           - |    11050 |            -700 | False    | SPECIAL CASE counter-case: at frame 11050 the cell is ice free since 11750 (older than max_age) -> the margin passed before the window, too early
