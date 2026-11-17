@@ -67,7 +67,11 @@ def process_features(state, params):
             # analyse it here right away
         horizontal, vertical, sign_lastice = _calculate_distance(state, ti_model, row, first_evaluation=True)
 
-        row['icecover'] = sign_lastice  # update icecover status in features_to_score dataframe
+        # sign of lasticecover at the first evaluation (-1 ice free, +1 ice covered), only used by the old
+        # "look at all time steps that have more ice" branch below. For polygons / lines it is the sign of the
+        # last point only, so if that branch is switched on again, a polygon-safe criterion would be
+        # max(horizontal, horizontals[-1]) or ice_thickness_through_time[0] == 0 (midpoint).
+        sign_at_first_evaluation = sign_lastice
 
             # for ice margins we have to check once where the ice margin was at the moment when the boulder should have been deposited, after that we only have to check if the icefree status did not change
         if row.pc_cat in ['ice margin', 'ice free', 'ice cover']:
@@ -83,25 +87,7 @@ def process_features(state, params):
             verticals[ti_comp:] = vertical
                 # ice cover is anyway only looked at at the end of the time period.. So that is ok? - we do not need to look at other time steps, because we only evaluate the distance at the last time step, because this is the only time step where we can be sure that the feature was actually ice covered, and we do not have to check if it was ice free before, because only the cummulative ice cover counts (since the last big glaciation, for example YD or LGM), depending on location.
             if row.pc_cat == 'ice cover':
-                if np.all(ice_thickness_through_time > 0):
-                #         # if it is always ice covered, we can just fill in the rest with the distance value
-                    pass  # horizontals and verticals are already filled with zeros or the distance value
-                else:
-                    plot_ice_thickness_through_time(working_dir=state.working_folder, times=state.t[ti_model:end_index_model+1], ice_thickness_through_time=ice_thickness_through_time, id=row.ID, row_index=index, feature_type=row.pc_cat, year_format=params.get('year_format'))
-                        # if it is not always ice covered, we have to check at which time step it becomes ice free and fill in the distances from there on
-                    print(f"This feature {row['ID']} - {row['pc_cat']} is not always ice covered, but we anyways have therefore a mismatch at age {state.t[ti_model]} with a distance of {horizontal} m.")
-                        # # for the score, we calculate the distance when there was the least ice
-                        # least_ice_index = np.argmin(state.vol[ti_model:end_index_model+1]) + int(ti_model)
-
-                        # horizontal, vertical, sign_lastice = calculate_distance(state, least_ice_index, row)
-                        # # if no ice before and this distance is not worse than before, we keep the old distance
-                        # if row['icecover'] == -1.0 and horizontal <= horizontals[0]:
-                        #     horizontal = horizontals[0]
-                        #     vertical = verticals[0]
-                        # # fill up horizontals and verticals from here and further with the new distances
-                        # horizontals[int((least_ice_index - ti_start_model)/step):] = [horizontal]*(len(horizontals) - int((least_ice_index - ti_start_model)/step))
-                        # verticals[int((least_ice_index - ti_start_model)/step):] = [vertical]*(len(verticals) - int((least_ice_index - ti_start_model)/step))
-
+                pass  # ice cover is only evaluated at the last frame (ti_model = end), there is no later frame to check
             else:
                 current_ice_thickness = state.thk[ti_model, j, i]
                     
@@ -135,11 +121,10 @@ def process_features(state, params):
                                     horizontal, vertical, sign_lastice = _calculate_distance(state, future_ti_model, row)
 
                                         # if no ice before and this distance is not worse than before, we keep the old distance
-                                    if row['icecover'] == -1.0 and horizontal <= horizontals[-1]:
+                                    if sign_at_first_evaluation == -1.0 and horizontal <= horizontals[-1]:
                                         horizontal = horizontals[-1]
                                         vertical = verticals[-1]
                                         
-                                        # row['icecover'] = sign_lastice  # update icecover status in features_to_score dataframe
 
                                         # fill up horizontals and verticals from here and further with the new distances
                                     horizontals[future_ti_comp+1:] = [horizontal]*(len(horizontals) - future_ti_comp - 1)
@@ -234,8 +219,9 @@ def _calculate_distance(state, ti, row, first_evaluation=False):
         horizontal_distances.append(horizontal_distance)
         vertical_distances.append(vertical_distance)
 
-        mean_horizontal_distance = np.nanmean(horizontal_distances)
-        mean_vertical_distance = np.nanmean(vertical_distances)
+    # median over all points of the polygon / line: a few points without a match (penalty) do not dominate
+    median_horizontal_distance = np.nanmedian(horizontal_distances)
+    median_vertical_distance = np.nanmedian(vertical_distances)
 
     # id = row['ID']
     # # make a txt file with the id as name, then the current time  as the first line with the time and then all the horizontal distances (not the vertical ones for now)
@@ -243,15 +229,21 @@ def _calculate_distance(state, ti, row, first_evaluation=False):
     #     zeile = [current_t] + ['horizontal'] + horizontal_distances + ['vertical:'] + vertical_distances
     #     f.write(','.join(map(str, zeile)) + '\n')
 
-    return mean_horizontal_distance, mean_vertical_distance, np.sign(sign_last_ice) # return the mean horizontal and vertical distance, and the sign of the last ice (positive for ice cover, negative for ice free)
+    return median_horizontal_distance, median_vertical_distance, np.sign(sign_last_ice) # return the median horizontal and vertical distance, and the sign of the last ice (positive for ice cover, negative for ice free)
+
+# Edges of the age window count as a match (the dating is not precise enough to exclude them). The tolerance is the size
+# of the small topography term (0 to 0.001) the loader adds to lasticecover, so a value exactly on an edge still matches.
+EDGE_TOLERANCE = 0.001
+
 
 def _condition_met_for_palcontext(current_t, last_ice, cum_icefree, min_age, max_age, palcontext, pc_time, jumped_over_icemargin=False):
+    # time since min_age / max_age, seen from the evaluated frame; widened by EDGE_TOLERANCE so the edges match
+    to_min = min_age - current_t - EDGE_TOLERANCE
+    to_max = max_age - current_t + EDGE_TOLERANCE
+
     if palcontext == 'ice margin':
-        return (min_age-current_t <= -last_ice) * ( -last_ice <= max_age-current_t) or jumped_over_icemargin
+        return (to_min <= -last_ice) * ( -last_ice <= to_max) or jumped_over_icemargin
     elif palcontext == 'ice free':
-        # time since min_age / max_age, seen from the evaluated frame
-        to_min = min_age - current_t
-        to_max = max_age - current_t
         if pc_time == 'ice-free interval':
             icefree_now_since_window = (last_ice < 0) and (-last_ice >= to_min) # ice free since inside the window or earlier
             covered_after_icefree_in_window = (last_ice > 0) and (to_min <= last_ice <= to_max) # ice came back inside the window, so it was icefree just before inside the window.
@@ -261,11 +253,11 @@ def _condition_met_for_palcontext(current_t, last_ice, cum_icefree, min_age, max
             return (last_ice < 0) and (-last_ice >= to_min)
 
     elif palcontext == 'ice cover':
-        return (min_age-current_t <= last_ice) and (last_ice > 0.0)
+        return (to_min <= last_ice) and (last_ice > 0.0)
         # elif pc_time == 'moment':
         #     return (min_age <= last_ice) * (last_ice <= max_age)
     elif palcontext == 'bedrock exposure':
-        return cum_icefree >= min_age
+        return cum_icefree >= min_age - EDGE_TOLERANCE
     else:
         print(f"Unknown palcontext: {palcontext}")
     return False
@@ -443,7 +435,8 @@ def _propose_next_cell(pad, cell_j, cell_i, cells_checked, search_for_higher_val
     new_cell_i = cell_i + di
 
     # Avoid going over the boundary
-    if new_cell_j < 2 or new_cell_j >= pad.shape[0]-1 or new_cell_i < 2 or new_cell_i >= pad.shape[1]-1:
+    # the next cell needs a full 3x3 neighbourhood inside the pad (same limit on both sides)
+    if new_cell_j < 1 or new_cell_j >= pad.shape[0]-1 or new_cell_i < 1 or new_cell_i >= pad.shape[1]-1:
         return None, None
 
     # If the cell is already checked, propose a new one

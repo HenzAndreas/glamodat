@@ -166,6 +166,24 @@ def test_special_case_not_used_at_later_evaluation(search_path):
     assert _columns_checked(search_path[0]) == [10, 11, 12]
 
 
+def test_ice_margin_jumped_over_from_inside_the_ice(search_path):
+    """Feature still ice covered -> search away from the ice (west). Column 9 is ice free, but since 12500 (far too
+    early, no age match). The ice sign changed between the feature and column 9: the search jumped over the (sharp)
+    ice margin, which counts as a match (the grid is too coarse to resolve the margin) -> 1000 m."""
+    state = _state(now=_columns({COL: 200, 9: -1500}, default=-3000))
+    assert _run(state, _row("ice margin")) == (1000.0, 10.0, -1.0)
+    assert _columns_checked(search_path[0]) == [10, 9]
+
+
+def test_ice_margin_jumped_over_from_outside_the_ice(search_path):
+    """Feature deglaciated far too early -> search towards the ice (east). Column 11 is ice free since 11800 (still too
+    early), column 12 is ice covered (no age match for an ice margin, but the sign changed) -> jumped over the ice
+    margin -> match at 2000 m."""
+    state = _state(now=_columns({COL: -1000, 11: -800, 12: 300}, default=-3000))
+    assert _run(state, _row("ice margin")) == (2000.0, 20.0, 1.0)
+    assert _columns_checked(search_path[0]) == [10, 11, 12]
+
+
 def test_no_match_in_search_area_gives_penalty(search_path):
     """Everything deglaciated far too early -> search towards the ice (east) until the edge of the search area,
     no match -> penalty distance, and the search only went east."""

@@ -361,7 +361,8 @@ def _check_ages_shp(geo, type_of_ages):
     # save list of invalid geometries
     invalid_geometries = []    
 
-    needed_columns_both_types = ['ID', 'confid_ra', 'pc_cat', 'pc_subcat', 'pc_time', 'geometry']
+    needed_columns_both_types = ['ID', 'confid_ra', 'pc_cat', 'pc_time', 'geometry']
+    optional_columns = ['pc_subcat']  # not used by the tool (only plotting / context), kept if present
     needed_columns_TCN_ages = ['sample_yr', 'public_yr', 'r_exp_age', 'r_ext_err']
     needed_columns_C14_ages = ['recal_max', 'recal_min']
     needed_columns_event_ages = ['e_age_max', 'e_age_min']
@@ -391,8 +392,8 @@ def _check_ages_shp(geo, type_of_ages):
             if col not in geo.columns:
                 invalid_geometries.append((col, 'is missing'))
 
-    # make sure to keep only the needed columns
-    geo = geo[needed_columns].copy()
+    # make sure to keep only the needed columns (and the optional ones, if present)
+    geo = geo[needed_columns + [col for col in optional_columns if col in geo.columns]].copy()
 
     for idx, geom in enumerate(geo['geometry']):
         if geom is None or geom.is_empty or geom.geom_type != 'Point':
@@ -446,9 +447,7 @@ def _check_landforms_shp(geo, type_of_ages):
         if geom.geom_type not in ['Point','Polygon', 'LineString','LineString Z', 'MultiLineString', 'MultiPolygon']:
             raise ValueError(f'Geometry type is not tested in this version of the comparison tool. Found: {geom.geom_type}.')
 
-    # if pc_subcat and pc_time are not present, we can add them as empty columns, as they are not needed for landforms
-    if 'pc_subcat' not in geo.columns:
-        geo['pc_subcat'] = ''
+    # if pc_time is not present, add it as an empty column (long-term deglaciation is assumed); pc_subcat is optional
     if 'pc_time' not in geo.columns:
         geo['pc_time'] = ''
 
@@ -464,6 +463,18 @@ def _check_landforms_shp(geo, type_of_ages):
 
     return geo
         
+def _year_of_sampling(item, sampling_column, publication_column):
+    """Year of sampling, or the year of publication if the sampling year is not given (Table D1 of the GLAMODAT
+    paper). Ages since sampling / publication are converted with it to the internal age scale, so one of the two is
+    required: error if neither is given."""
+    for column in (sampling_column, publication_column):
+        value = item.get(column)
+        if value is not None and not pd.isna(value):
+            return float(value)
+    raise ValueError(f"Feature {item['ID']}: neither {sampling_column} (year of sampling) nor {publication_column} "
+                     f"(year of publication) is given. One of them is needed to convert the age to the age scale.")
+
+
 def _give_age_bounds(gdf, type_of_ages, params):
     """
     Add min_age and max_age columns to the GeoDataFrame based on existing age data.
@@ -485,10 +496,8 @@ def _give_age_bounds(gdf, type_of_ages, params):
                 min_ages.append(item['r_exp_age'] - item['r_ext_err'])
                 max_ages.append(item['r_exp_age'] + item['r_ext_err'])
 
-            # make BP out of age since sampling
-            year_of_sampling = item['sample_yr'] if not pd.isna(item['sample_yr']) else item['public_yr']
-            if pd.isna(year_of_sampling):
-                year_of_sampling = 2024
+            # make BP out of age since sampling (or since publication); error if neither year is given
+            year_of_sampling = _year_of_sampling(item, 'sample_yr', 'public_yr')
             # change all min ages and max ages to years before present (present = 1950)
             min_ages[-1] = year_of_present - year_of_sampling + min_ages[-1]
             max_ages[-1] = year_of_present - year_of_sampling + max_ages[-1]
@@ -519,17 +528,8 @@ def _give_age_bounds(gdf, type_of_ages, params):
             min_ages.append(item['e_age'] - item['e_neg_err'])
             max_ages.append(item['e_age'] + item['e_pos_err'])
 
-            # year of sampling
-            # get the number in the column orig_ref, if there is a number, otherwise take 2000
-            year_of_sampling = 2000
-            
-            # take sample year (mean_s_yr) if is nan, take the publication year (mean_p_yr) if is nan, otherwise take 2000
-            if 'mean_s_yr' in gdf.columns and not pd.isna(item['mean_s_yr']):
-                year_of_sampling = int(item['mean_s_yr'])
-            elif 'mean_p_yr' in gdf.columns and not pd.isna(item['mean_p_yr']):
-                year_of_sampling = int(item['mean_p_yr'])
-            else:
-                print(f"Warning: No sampling year or publication year available for {item['ID']}. Using default year of 2000 for age conversion to years before present.")
+            # year of sampling (mean_s_yr), else year of publication (mean_p_yr); error if neither is given
+            year_of_sampling = _year_of_sampling(item, 'mean_s_yr', 'mean_p_yr')
 
             # change all min ages and max ages to years before present (present = 1950)
             min_ages[-1] = year_of_present - year_of_sampling + min_ages[-1]
@@ -548,19 +548,13 @@ def _give_age_bounds(gdf, type_of_ages, params):
 
 def _check_all_categories_right(gdf):
     """
-    Check if all categories are right, for pc_cat, pc_subcat and pc_time
+    Check if all categories are right, for pc_cat, pc_time and confid_ra (pc_subcat is optional and not checked)
     """
     # check if pc_cat is in the right categories
     valid_pc_cat = ['ice free', 'ice cover', 'bedrock exposure', 'ice margin', 'ambiguous', '-']
     if not gdf['pc_cat'].isin(valid_pc_cat).all():
         invalid_categories = gdf.loc[~gdf['pc_cat'].isin(valid_pc_cat), 'pc_cat'].unique()
         raise ValueError(f"Invalid pc_cat categories found: {invalid_categories}. Valid categories are: {valid_pc_cat}")
-
-    # check if pc_subcat is in the right categories
-    valid_pc_subcat = ['-','','ice advance','ice retreat','ice retreat/readvance']
-    if not gdf['pc_subcat'].isin(valid_pc_subcat).all():
-        invalid_categories = gdf.loc[~gdf['pc_subcat'].isin(valid_pc_subcat), 'pc_subcat'].unique()
-        raise ValueError(f"Invalid pc_subcat categories found: {invalid_categories}. Valid categories are: {valid_pc_subcat}")
 
     # check if pc_time is in the right categories
     valid_pc_time = ['', '-', 'long-term deglaciation', 'ice-free interval']
