@@ -10,7 +10,7 @@ and matching model grid cells, applies configurable confidence and density
 weights, and produces summary scores and diagnostic plots.
 
 > Status: research software under active development. The associated
-> publication is in preparation.
+> publication is under review in GMD (https://doi.org/10.5194/egusphere-2026-5635).
 
 ## Links
 
@@ -128,8 +128,8 @@ define it:
 - `model_year_ce_at_t0` is the calendar year (CE) at model time t = 0, i.e. the
   model time is t = year CE − `model_year_ce_at_t0`. Use 2000 for IGM runs with
   t = 0 in 2000 CE and 1950 for runs that count in negative years BP. If it is
-  missing, GLAMODAT assumes 1950 (the behaviour of earlier versions) and prints a
-  warning.
+  missing, GLAMODAT assumes 2000 and prints a warning (earlier versions assumed
+  1950, so set 1950 explicitly for older runs).
 
 Model frames are converted with age = present year − `model_year_ce_at_t0` − t.
 Example: with `year_format: -b2k` and `model_year_ce_at_t0: 2000`, the model frame
@@ -141,8 +141,8 @@ Evidence ages are converted to the same scale:
 |---|---|---|
 | event ages | `e_age_min`, `e_age_max` | years BP (1950) |
 | ¹⁴C | `recal_min`, `recal_max` | calibrated years BP (1950) |
-| TCN | `r_exp_age` ± `r_ext_err` | years before the sampling year (`sample_yr`, else `public_yr`, else 2024) |
-| dated landforms | `e_age` − `e_neg_err` / + `e_pos_err` | years before `mean_s_yr`, else `mean_p_yr`, else 2000 |
+| TCN | `r_exp_age` ± `r_ext_err` | years before the sampling year (`sample_yr`, else `public_yr`, else it gives an error) |
+| dated landforms | `e_age` − `e_neg_err` / + `e_pos_err` | years before `mean_s_yr`, else `mean_p_yr`, else it gives an error |
 
 Further rules:
 
