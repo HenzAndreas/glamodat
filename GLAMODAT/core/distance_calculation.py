@@ -274,6 +274,8 @@ def _condition_met_for_palcontext(current_t, last_ice, cum_icefree, min_age, max
 # Only for the first evaluation of a feature (first_evaluation=True, set only by the first _calculate_distance call in
 # process_features): the later re-evaluations (frame with the most ice, which can even be the same frame) must still
 # see a later readvance as a mismatch.
+# Limit: a change between that youngest frame inside the window and min_age (less than one output interval) can still
+# be missed.
 # ---------------------------------------------------------------------------------------------------------------------
 
 def _is_special_case_change_after_window(current_t, last_ice, min_age, palcontext, pc_time):
